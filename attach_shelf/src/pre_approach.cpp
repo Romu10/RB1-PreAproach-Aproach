@@ -88,11 +88,11 @@ class VelParam: public rclcpp::Node
     void Laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) 
     {
         // Message received
-        int range_total = msg->ranges.size();
+        //int range_total = msg->ranges.size();
         //RCLCPP_INFO(this->get_logger(), "Total Laser Received: %i", range_total);
         
         // Getiting Front Distance 
-        front_distance = msg->ranges[540];
+        front_distance = msg->ranges[330];
     }
 
     void Odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
