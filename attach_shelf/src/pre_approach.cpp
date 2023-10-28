@@ -43,8 +43,14 @@ class VelParam: public rclcpp::Node
     
     void timer_callback()
     {
+        // Getting parameter data
         this->get_parameter("velocity", vel_parameter_);
         RCLCPP_INFO(this->get_logger(), "Velocity parameter is: %f", vel_parameter_);
+        
+        // Printing Front Distance 
+        RCLCPP_INFO(this->get_logger(), "Front Robot Distance: %f", front_distance);
+        
+        // Publishing to robot cmd_vel
         auto message = geometry_msgs::msg::Twist();
         message.linear.x = vel_parameter_;
         publisher_->publish(message);
@@ -54,6 +60,9 @@ class VelParam: public rclcpp::Node
         // Message received
         int range_total = msg->ranges.size();
         //RCLCPP_INFO(this->get_logger(), "Total Laser Received: %i", range_total);
+        
+        // Getiting Front Distance 
+        front_distance = msg->ranges[540];
     }
 
   
@@ -69,6 +78,9 @@ class VelParam: public rclcpp::Node
     // Define the subscription to the Laser Scan 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscription1_;
     rclcpp::CallbackGroup::SharedPtr laser_callback_group_;
+
+    // Variables 
+    float front_distance = 0.00;
 
 };
 
