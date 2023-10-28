@@ -14,10 +14,15 @@ class VelParam: public rclcpp::Node
     VelParam()
       : Node("param_vel_node")
     {
-      // Parameter Configuration
-        auto param_desc = rcl_interfaces::msg::ParameterDescriptor{};
-        param_desc.description = "Sets the velocity (in m/s) of the robot.";
-        this->declare_parameter<std::double_t>("velocity", 0.0, param_desc);
+      // Velocity Parameter Configuration
+        auto lin_vel_param_desc = rcl_interfaces::msg::ParameterDescriptor{};
+        lin_vel_param_desc.description = "Sets the velocity (in m/s) of the robot.";
+        this->declare_parameter<std::double_t>("linear_velocity", 0.0, lin_vel_param_desc);
+
+      // Turning Parameter Configuration
+        auto ang_vel_param_desc = rcl_interfaces::msg::ParameterDescriptor{};
+        ang_vel_param_desc.description = "Sets the angular velocity (in r/s) of the robot.";
+        this->declare_parameter<std::double_t>("angular_velocity", 0.0, ang_vel_param_desc);
       
       // Timer Configuration
         timer_ = this->create_wall_timer(
@@ -43,16 +48,20 @@ class VelParam: public rclcpp::Node
     
     void timer_callback()
     {
-        // Getting parameter data
-        this->get_parameter("velocity", vel_parameter_);
-        RCLCPP_INFO(this->get_logger(), "Velocity parameter is: %f", vel_parameter_);
-        
+        // Getting linear velocity parameter data
+        this->get_parameter("linear_velocity", lin_vel_parameter_);
+        RCLCPP_INFO(this->get_logger(), "Linear Velocity parameter is: %f", lin_vel_parameter_);
+
+        // Gettin angular velocity parameter data 
+        this->get_parameter("angular_velocity", ang_vel_parameter_);
+        RCLCPP_INFO(this->get_logger(), "Angular Velocity parameter is: %f", ang_vel_parameter_);
+
         // Printing Front Distance 
         RCLCPP_INFO(this->get_logger(), "Front Robot Distance: %f", front_distance);
         
         // Publishing to robot cmd_vel
         auto message = geometry_msgs::msg::Twist();
-        message.linear.x = vel_parameter_;
+        message.linear.x = lin_vel_parameter_;
         publisher_->publish(message);
     }
     
@@ -69,7 +78,10 @@ class VelParam: public rclcpp::Node
   private:
 
     // Define the parameter
-    std::double_t vel_parameter_;
+    std::double_t lin_vel_parameter_;
+    std::double_t ang_vel_parameter_;
+
+    // Define Timer 
     rclcpp::TimerBase::SharedPtr timer_;
 
     // Define the Publisher for cmd_vel
