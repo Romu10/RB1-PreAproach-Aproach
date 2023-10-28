@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -23,7 +24,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(param_vel_node src/pre_approach.cpp)
-ament_target_dependencies(param_vel_node rclcpp geometry_msgs sensor_msgs)
+ament_target_dependencies(param_vel_node rclcpp geometry_msgs sensor_msgs nav_msgs)
 
 install(TARGETS
   param_vel_node
