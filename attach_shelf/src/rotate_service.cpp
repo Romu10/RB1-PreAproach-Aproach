@@ -52,8 +52,8 @@ private:
 
         // Obtiene el número de grados desde la solicitud
         float degrees = req->degrees;
-        float radians = degrees * (M_PI / 180);
-        float initial_theta = current_theta_;  // Dereferenciar el puntero
+        float radians = ((degrees/2) * M_PI) / 180;
+        float initial_theta = current_theta_;  
 
         // Calculus
         float target_theta = initial_theta + radians;
@@ -66,7 +66,7 @@ private:
         while (rclcpp::ok()) {
             RCLCPP_INFO(get_logger(), "Current theta: %f | Target theta: %f | Initial theta: %f | Min_value: %f | Max_value: %f ",
                         current_theta_, target_theta, initial_theta, min_value_degree, max_value_degree);
-            float orientation_error = target_theta - current_theta_;  // Dereferenciar el puntero
+            float orientation_error = target_theta - current_theta_;  
             if (fabs(orientation_error) < error_percent) {
                 rotate_robot(0.0);
                 float current_theta_degree = ((current_theta_ * 180) / M_PI);
@@ -78,9 +78,9 @@ private:
             }
 
             if (orientation_error > 0.0) {
-                rotate_robot(0.1);
+                rotate_robot(0.2);
             } else {
-                rotate_robot(-0.1);
+                rotate_robot(-0.2);
             }
             rate.sleep();
         }
@@ -92,7 +92,8 @@ private:
     void odometryCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         current_theta_ = msg->pose.pose.orientation.z;  // Actualizar el valor al que apunta el puntero
-        RCLCPP_WARN(get_logger(), "Current Theta: %f", current_theta_);
+        current_degrees_ = ((current_theta_ * 2) * 180) / M_PI;
+        RCLCPP_WARN(get_logger(), "Current Degrees: %f", current_degrees_);
     }
 
 private:
@@ -104,7 +105,8 @@ private:
     rclcpp::CallbackGroup::SharedPtr odom_callback_group_;
 
     geometry_msgs::msg::Twist vel_msg_;
-    float current_theta_;  // Cambiar a puntero
+    float current_theta_;  
+    float current_degrees_;
 };
 
 int main(int argc, char** argv)
