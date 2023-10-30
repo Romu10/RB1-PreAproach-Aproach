@@ -1,0 +1,5 @@
+# Request for the specified amount of degree.
+int32 degrees 
+---
+# Result for specify if the rotation has been completed.
+string result
