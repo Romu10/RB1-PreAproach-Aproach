@@ -1,0 +1,14 @@
+<launch>
+
+    <arg name="obstacle" default="0.0"/>
+    <arg name="degrees" default="0.0"/>
+
+    <node pkg="attach_shelf" exec="rotate_node" name="rotate_service_node">
+    </node>
+
+    <node pkg="attach_shelf" exec="param_vel_node" name="move_robot_node">
+        <param name="obstacle" value="$(var obstacle)"/>
+        <param name="degrees" value="$(var degrees)"/>
+    </node>
+
+</launch>
