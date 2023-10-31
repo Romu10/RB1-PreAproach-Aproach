@@ -18,6 +18,7 @@ find_package(attach_shelf REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/Rotate.srv"  # Ruta al archivo de servicio personalizado
+  "srv/GoToLoading.srv"  # Ruta al archivo de servicio personalizado
 )
 
 if(BUILD_TESTING)
@@ -37,9 +38,17 @@ ament_target_dependencies(param_vel_node rclcpp geometry_msgs sensor_msgs nav_ms
 add_executable(rotate_node src/rotate_service.cpp)
 ament_target_dependencies(rotate_node rclcpp geometry_msgs sensor_msgs nav_msgs std_msgs rosidl_default_generators attach_shelf)
 
+add_executable(param_vel_node_v2 src/pre_approach_v2.cpp)
+ament_target_dependencies(param_vel_node_v2 rclcpp geometry_msgs sensor_msgs nav_msgs attach_shelf rosidl_default_generators)
+
+add_executable(approach_node src/approach_service_server.cpp)
+ament_target_dependencies(approach_node rclcpp geometry_msgs sensor_msgs nav_msgs std_msgs rosidl_default_generators attach_shelf)
+
 install(TARGETS
   param_vel_node
+  param_vel_node_v2
   rotate_node
+  approach_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

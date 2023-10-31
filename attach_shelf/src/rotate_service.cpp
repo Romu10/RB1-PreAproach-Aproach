@@ -91,9 +91,10 @@ private:
 
     void odometryCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
+        
         current_theta_ = msg->pose.pose.orientation.z;  // Actualizar el valor al que apunta el puntero
         current_degrees_ = ((current_theta_ * 2) * 180) / M_PI;
-        RCLCPP_WARN(get_logger(), "Current Degrees: %f", current_degrees_);
+        //RCLCPP_WARN(get_logger(), "Current Degrees: %f", current_degrees_);
     }
 
 private:
