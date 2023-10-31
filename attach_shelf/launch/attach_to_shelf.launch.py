@@ -24,7 +24,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument('obstacle', default_value='0.0'),
         DeclareLaunchArgument('degrees', default_value='0'),
-        DeclareLaunchArgument('final_approach', default_value='false'),
+        DeclareLaunchArgument('final_approach', default_value="false"),
         
         # Ahora LogInfo está dentro de la lista de acciones.
         LogInfo(msg=LaunchConfiguration('obstacle')),
@@ -40,6 +40,12 @@ def generate_launch_description():
                 LaunchConfiguration('obstacle'),
                 LaunchConfiguration('degrees'),
                 LaunchConfiguration('final_approach'),
+            ],
+            parameters=[
+                {'obstacle': LaunchConfiguration('obstacle')},
+                {'degrees': LaunchConfiguration('degrees')},
+                {'final_approach': LaunchConfiguration('final_approach')},
             ]
+
         ),
     ])

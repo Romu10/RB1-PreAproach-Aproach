@@ -25,7 +25,7 @@ class VelParam: public rclcpp::Node
       // Velocity Parameter Configuration
         auto obstacle_param_desc = rcl_interfaces::msg::ParameterDescriptor{};
         obstacle_param_desc.description = "Sets the distance (in m) from the robot to the wall.";
-        this->declare_parameter<std::double_t>("obstacle", 0.0, obstacle_param_desc);
+        this->declare_parameter<double>("obstacle", 0.0, obstacle_param_desc);
 
       // Turning Parameter Configuration
         auto degrees_param_desc = rcl_interfaces::msg::ParameterDescriptor{};
@@ -35,7 +35,7 @@ class VelParam: public rclcpp::Node
       // Turning Parameter Configuration
         auto final_approach_param_desc = rcl_interfaces::msg::ParameterDescriptor{};
         final_approach_param_desc.description = "Sets if you want to final approach.";
-        this->declare_parameter<std::string>("final_approach", "false", final_approach_param_desc);
+        this->declare_parameter<bool>("final_approach", "", final_approach_param_desc);
       
       // Timer Configuration
         timer_ = this->create_wall_timer(
@@ -76,7 +76,7 @@ class VelParam: public rclcpp::Node
 
         // Getting final approach parameter data 
         this->get_parameter("final_approach", fa_parameter_);
-        if (fa_parameter_ == "true") 
+        if (fa_parameter_ == true) 
         {
             RCLCPP_INFO(this->get_logger(), "Final Approach parameter is set to: true");
         } 
@@ -89,7 +89,7 @@ class VelParam: public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "Front Robot Distance: %f", front_distance);
         
         // Parameters Set Info
-        if (obs_parameter_ <= 0.0 && dgs_parameter_ <= 0.0 && (fa_parameter_ != "false" || fa_parameter_ != "true"))
+        if (obs_parameter_ <= 0.0 && dgs_parameter_ <= 0.0 )
         {
             RCLCPP_WARN(this->get_logger(), "Please Set Obstacle & Deegres Parameters & Final Approach");
         }
@@ -121,7 +121,7 @@ class VelParam: public rclcpp::Node
             {
                 RCLCPP_INFO(this->get_logger(), "Rotation completed successfully");
                 
-                if (fa_parameter_ == "true")
+                if (fa_parameter_ == true)
                 {
                     //Calling Approach Service
                     auto request_approach = std::make_shared<attach_shelf::srv::GoToLoading::Request>();
@@ -166,9 +166,9 @@ class VelParam: public rclcpp::Node
   private:
 
     // Define the parameter
-    std::double_t obs_parameter_;
+    double obs_parameter_;
     int dgs_parameter_;
-    std::string fa_parameter_;
+    bool fa_parameter_;
 
     // Define Timer 
     rclcpp::TimerBase::SharedPtr timer_;
