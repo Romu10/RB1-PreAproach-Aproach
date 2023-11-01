@@ -73,7 +73,7 @@ private:
                 rotate_robot(0.0);
                 float current_theta_degree = ((current_theta_ * 180) / M_PI);
                 float target_theta_degree = (target_theta * 180 / M_PI);
-                RCLCPP_INFO(get_logger(), "Current theta in degree: %f ||| Target theta in degree: %f", current_theta_degree, target_theta_degree);
+                // RCLCPP_INFO(get_logger(), "Current theta in degree: %f ||| Target theta in degree: %f", current_theta_degree, target_theta_degree);
                 RCLCPP_INFO(get_logger(), "Current theta equal to Target theta");
                 rotation_completed_ = true; // Establece que la rotación se ha completado
                 res->result = "Rotation complete";

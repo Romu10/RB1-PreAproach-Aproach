@@ -68,12 +68,14 @@ private:
     {
         RCLCPP_INFO(get_logger(), "The Service /approach_robot has been called");
 
-        bool signal = req->attach_to_shelf;
+        signal = req->attach_to_shelf;
         
         if (signal == true)
         {
+            
+            RCLCPP_INFO(get_logger(), "Calculating position for shelf's legs");
+            std::this_thread::sleep_for(std::chrono::seconds(1));
             res->complete = true; 
-            RCLCPP_INFO(get_logger(), "Complete -> True");
         }
         else
         {
@@ -108,6 +110,15 @@ private:
                 //RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
             }
         }
+
+        if (signal == true)
+        {
+            RCLCPP_INFO_ONCE(get_logger(), "Capturing legs distances");
+            shelf_leg_1 = msg->ranges[450];
+            shelf_leg_2 = msg->ranges[630];
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance is: %f", shelf_leg_1);
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance is: %f", shelf_leg_2);
+        }
     
     }
 
@@ -131,6 +142,13 @@ private:
     float current_theta_;  
     float current_degrees_;
     float front_distance = 0.00;
+
+    float shelf_leg_1 = 0.0;
+    float shelf_leg_2 = 0.0;
+
+    bool signal;
+    
+
 };
 
 int main(int argc, char** argv)
