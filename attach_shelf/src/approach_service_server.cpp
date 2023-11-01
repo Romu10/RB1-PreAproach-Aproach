@@ -19,7 +19,7 @@ public:
     {
         // ROS Services
         service = create_service<attach_shelf::srv::GoToLoading>(
-            "approach_shelf_node",
+            "approach_shelf",
             std::bind(&MoveRB1::approachServiceCallback, this, std::placeholders::_1, std::placeholders::_2)
         );
 
@@ -73,13 +73,16 @@ private:
         if (signal == true)
         {
             res->complete = true; 
+            RCLCPP_INFO(get_logger(), "Complete -> True");
         }
         else
         {
             res->complete = false;
+            RCLCPP_INFO(get_logger(), "Complete -> False");
         }
 
         RCLCPP_INFO(get_logger(), "Finished service /approach_robot");
+        //rclcpp::shutdown();
     }
     
     void odometryCallback(const nav_msgs::msg::Odometry::SharedPtr msg)

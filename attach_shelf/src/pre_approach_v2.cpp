@@ -1,3 +1,7 @@
+#include "attach_shelf/srv/detail/go_to_loading__struct.hpp"
+#include "attach_shelf/srv/detail/rotate__struct.hpp"
+#include "rclcpp/executor.hpp"
+#include "rclcpp/executors.hpp"
 #include "rclcpp/logging.hpp"
 #include "rclcpp/subscription.hpp"
 #include <rclcpp/rclcpp.hpp>
@@ -60,12 +64,13 @@ class VelParam: public rclcpp::Node
         approach_client_ = create_client<attach_shelf::srv::GoToLoading>("/approach_shelf");
       
       // Servie Client for /rotate_robot
-        rotate_client_ = create_client<attach_shelf::srv::Rotate>("rotate_robot");
+        rotate_client_ = create_client<attach_shelf::srv::Rotate>("/rotate_robot");
 
     }
     
     void timer_callback()
     {
+        RCLCPP_INFO(this->get_logger(), "=========================================");
         // Getting linear velocity parameter data
         this->get_parameter("obstacle", obs_parameter_);
         RCLCPP_INFO(this->get_logger(), "Obstacle parameter is: %f", obs_parameter_);
@@ -84,9 +89,10 @@ class VelParam: public rclcpp::Node
         {
             RCLCPP_INFO(this->get_logger(), "Final Approach parameter is set to: false");
         }
-        
+        RCLCPP_INFO(this->get_logger(), "=========================================");
+
         // Printing Front Distance 
-        RCLCPP_INFO(this->get_logger(), "Front Robot Distance: %f", front_distance);
+        RCLCPP_INFO(this->get_logger(), "- Front Robot Distance: %f", front_distance);
         
         // Parameters Set Info
         if (obs_parameter_ <= 0.0 && dgs_parameter_ <= 0.0 )
@@ -96,9 +102,9 @@ class VelParam: public rclcpp::Node
 
         if (obs_parameter_ != 0.0 && task_1 == false)
         {
-            message.linear.x = 0.2;
+            message.linear.x = 0.4;
             publisher_->publish(message);
-            RCLCPP_INFO(this->get_logger(), "Moving Forward");
+            RCLCPP_INFO(this->get_logger(), "- Moving Forward");
         }
         
         if (obs_parameter_ != 0.0 && front_distance <= obs_parameter_)
@@ -107,37 +113,69 @@ class VelParam: public rclcpp::Node
             message.linear.x = 0.0;
             RCLCPP_INFO(this->get_logger(), "Max Distance Reached");
             publisher_->publish(message);
-            RCLCPP_INFO(this->get_logger(), "Rotating Robot");
 
-            // Construct the request
-            auto request = std::make_shared<attach_shelf::srv::Rotate::Request>();
-            request->degrees = dgs_parameter_;
-
-            // Send the request to the service server
-            auto result = rotate_client_->async_send_request(request);
-            result.wait(); // Esperar a que la solicitud se complete (de forma sincrónica)
-
-            if (result.get()->result == "Rotation completed successfully")
+            // Wait until rotate service server is ready.
+            while (!rotate_client_->wait_for_service(1s) && rotate_srv_done_ == false) 
             {
-                RCLCPP_INFO(this->get_logger(), "Rotation completed successfully");
+                if (!rclcpp::ok()) 
+                {
+                    RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Rotate service - Interrupted while waiting for the service. Exiting.");
+                    return;
+                }       
+                RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Rotate service not available, waiting again...");
+                
+            }
+
+            
+            if (rotate_srv_done_ == true)
+            {
+                RCLCPP_INFO(this->get_logger(), "Rotate Service Completed");
+            }
+            else if (rotate_requiered == false)
+            {
+                // Construct the rotate request
+                auto rotate_request = std::make_shared<attach_shelf::srv::Rotate::Request>();
+                rotate_request->degrees = dgs_parameter_;
+
+                // Send to the rotate service server the request
+                auto result_future = rotate_client_->async_send_request(rotate_request, std::bind(&VelParam::rotate_response_callback, this, std::placeholders::_1)); 
+
+                // Send just once
+                rotate_requiered = true;
+            }
+
+            if (glb_rotate_result_ == "Rotation complete" && rotate_srv_done_ == true)
+            {
+                RCLCPP_WARN(this->get_logger(), "Starting Indentification");
                 
                 if (fa_parameter_ == true)
                 {
-                    //Calling Approach Service
-                    auto request_approach = std::make_shared<attach_shelf::srv::GoToLoading::Request>();
-                    request_approach->attach_to_shelf = true;
-
-                    // Send the request to the service server
-                    auto result_approach = approach_client_->async_send_request(request_approach);
-                    result_approach.wait();
-                    
-                    if (result_approach.get()->complete)
-                    {                
-                        RCLCPP_INFO(this->get_logger(), "Approach completed successfully");
-                    } 
-                    else
+                    // Wait until approach service server is ready.
+                    while (!approach_client_->wait_for_service(1s) && approach_srv_done_ == false) 
                     {
-                        RCLCPP_ERROR(this->get_logger(), "Approach service call failed");
+                        if (!rclcpp::ok()) 
+                        {
+                            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Approach Service - Interrupted while waiting for the service. Exiting.");
+                            return;
+                        }
+                        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Approach service not available, waiting again...");
+                    }
+                    
+                    if (approach_srv_done_ == true) 
+                    {
+                        RCLCPP_INFO(this->get_logger(), "Approach Service Completed");
+                    }
+                    else if (approach_required == false)
+                    {
+                         // Construct the approach request
+                        auto approach_request = std::make_shared<attach_shelf::srv::GoToLoading::Request>();
+                        approach_request->attach_to_shelf = fa_parameter_;
+
+                        // Send to the approach service server the request
+                        auto approach_result_future = approach_client_->async_send_request(approach_request, std::bind(&VelParam::approach_response_callback, this, std::placeholders::_1));
+
+                        // send just once
+                        approach_required = true;
                     }
                 }
                 else 
@@ -147,20 +185,58 @@ class VelParam: public rclcpp::Node
             }
             else
             {
-                RCLCPP_ERROR(this->get_logger(), "Service call failed");
+                RCLCPP_INFO(this->get_logger(), "Waiting");
             }
-            
+
         }
         
+    }
+
+    void rotate_response_callback(rclcpp::Client<attach_shelf::srv::Rotate>::SharedFuture future) 
+    {
+        auto status = future.wait_for(1s);
+        auto rotate_result_ = future.get()->result;
+        glb_rotate_result_ = rotate_result_;
+        if (status == std::future_status::ready) 
+        {
+            rotate_srv_done_ = true;
+            RCLCPP_INFO(this->get_logger(), "Rotate Result: %s", rotate_result_.c_str());
+            RCLCPP_INFO(this->get_logger(), "Rotation completed successfully");
+        } 
+        else 
+        {
+            RCLCPP_INFO(this->get_logger(), "Rotate Service In-Progress...");
+        }
+    }
+
+    void approach_response_callback(rclcpp::Client<attach_shelf::srv::GoToLoading>::SharedFuture future) 
+    {
+        auto status = future.wait_for(1s);
+        auto approach_result_ = future.get()->complete;
+        glb_approach_result_ = approach_result_;
+        if (status == std::future_status::ready) 
+        {
+            if (approach_result_ == true) 
+            {
+                approach_srv_done_ = true;
+                RCLCPP_INFO(this->get_logger(), "Approach complete");
+            } 
+            else 
+            {
+                RCLCPP_INFO(this->get_logger(), "Approach incomplete");
+            }
+        } 
+        else 
+        {
+            RCLCPP_INFO(this->get_logger(), "Approach Service In-Progress...");
+        }
     }
 
     
     void Laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) 
     {   
-        
         front_distance = msg->ranges[540];
         //RCLCPP_WARN(this->get_logger(), "Front Distance: %f", front_distance);
-        
     }
   
   private:
@@ -195,7 +271,12 @@ class VelParam: public rclcpp::Node
     float request_angle = 0.0;
     bool task_1 = false;
     bool task_2 = false;
-    
+    bool rotate_srv_done_ = false; 
+    bool approach_srv_done_ = false;
+    std::string glb_rotate_result_;
+    bool glb_approach_result_; 
+    bool rotate_requiered = false;
+    bool approach_required = false;
 
 };
 
@@ -204,9 +285,11 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
 
     std::shared_ptr<VelParam> VelParam_node = std::make_shared<VelParam>();
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(VelParam_node);
-    executor.spin();
+    //rclcpp::executors::MultiThreadedExecutor executor;
+    //executor.add_node(VelParam_node);
+    //executor.spin();
+
+    rclcpp::spin(VelParam_node);
 
     rclcpp::shutdown();
     return 0;
