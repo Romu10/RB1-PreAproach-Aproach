@@ -1,6 +1,7 @@
 #include "attach_shelf/srv/detail/go_to_loading__struct.hpp"
 #include "attach_shelf/srv/go_to_loading.hpp"
 
+#include "geometry_msgs/msg/detail/point__struct.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/float32.hpp"
@@ -74,6 +75,21 @@ public:
         *y = d * sin(theta);
     }
 
+    double calcularDistancia(double x1, double y1, double x2, double y2) 
+    {
+        double dx = x1 - x2;
+        double dy = y1 - y2;
+        return sqrt(dx * dx + dy * dy);
+    }
+
+    geometry_msgs::msg::Point calcularPuntoMedio(double x1, double y1, double x2, double y2)
+    {
+        geometry_msgs::msg::Point puntoMedio;
+        puntoMedio.x = (x1 + x2) / 2.0;
+        puntoMedio.y = (y1 + y2) / 2.0;
+        return puntoMedio;
+    }
+
 private:
     void approachServiceCallback(
     const std::shared_ptr<attach_shelf::srv::GoToLoading::Request> req,
@@ -92,6 +108,16 @@ private:
             {
                 res->complete = true; 
                 RCLCPP_INFO(get_logger(), "Service detected both leg");
+
+
+                // Calculating distance between points
+                dist_p1_to_p2 = calcularDistancia(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
+                RCLCPP_INFO(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
+
+                // Calculating middle point
+                midPoint = calcularPuntoMedio(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
+
+
             }
             else if (detected_leg_1_ == true && detected_leg_2_ == false)  
             {
@@ -214,6 +240,16 @@ private:
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 X: %f", x_point_leg_2);
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Y: %f", y_point_leg_2);
 
+
+            // Calculating distance between points
+            dist_p1_to_p2 = calcularDistancia(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
+            RCLCPP_INFO(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
+
+            // Calculating middle point
+            midPoint = calcularPuntoMedio(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
+            RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
+            RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
+
         }
 
         // Make run the legs detection just once 
@@ -244,6 +280,7 @@ private:
                 RCLCPP_INFO_ONCE(get_logger(), "No Distance Detected in for second shelf leg");
             }
 
+
         }
     
     }
@@ -265,6 +302,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr laser_callback_group_;
 
     geometry_msgs::msg::Twist vel_msg_;
+    geometry_msgs::msg::Point midPoint;
     float current_theta_;  
     float current_degrees_;
     float front_distance = 0.00;
@@ -301,6 +339,7 @@ private:
     double theta;
     double d;
     double x, y;
+    double dist_p1_to_p2;
     
 
 };
