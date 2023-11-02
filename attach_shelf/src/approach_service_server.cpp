@@ -6,6 +6,8 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 
 #include "rclcpp/executors.hpp"
 #include "rclcpp/logging.hpp"
@@ -26,6 +28,9 @@ public:
 
         RCLCPP_INFO(get_logger(), "Approach Service Server Configured");
 
+        // TransformBroadCaster
+        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+
         // ROS Publishers
         vel_pub = create_publisher<geometry_msgs::msg::Twist>("/robot/cmd_vel", 10);
 
@@ -40,7 +45,6 @@ public:
         "/odom", 10,
         std::bind(&MoveRB1::odometryCallback, this, std::placeholders::_1),
         options2);
-
 
         // Laser Sub
         laser_callback_group_ = this->create_callback_group(
@@ -90,6 +94,25 @@ public:
         return puntoMedio;
     }
 
+    void publishTransformBroadcasterMsg(const geometry_msgs::msg::Point& center_point)
+    {
+        tf2_ros::TransformBroadcaster tf_broadcaster(this->shared_from_this());
+
+        geometry_msgs::msg::TransformStamped transformStamped;
+        transformStamped.header.stamp = this->now();
+        transformStamped.header.frame_id = "robot_base_link"; // Reemplaza con tu marco base
+        transformStamped.child_frame_id = "cart_frame";
+        transformStamped.transform.translation.x = center_point.x + 0.2;
+        transformStamped.transform.translation.y = center_point.y - 0.1;
+        transformStamped.transform.translation.z = 0.0; // Suponiendo una transformación 2D
+        transformStamped.transform.rotation.x = 0.0;
+        transformStamped.transform.rotation.y = 0.0;
+        transformStamped.transform.rotation.z = 0.0;
+        transformStamped.transform.rotation.w = 1.0;
+
+        tf_broadcaster.sendTransform(transformStamped);
+    }
+
 private:
     void approachServiceCallback(
     const std::shared_ptr<attach_shelf::srv::GoToLoading::Request> req,
@@ -109,15 +132,17 @@ private:
                 res->complete = true; 
                 RCLCPP_INFO(get_logger(), "Service detected both leg");
 
-
                 // Calculating distance between points
                 dist_p1_to_p2 = calcularDistancia(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
                 RCLCPP_INFO(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
 
                 // Calculating middle point
                 midPoint = calcularPuntoMedio(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
+                RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
+                RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
 
-
+                // Create and Publish the Transform
+                publishTransformBroadcasterMsg(midPoint);
             }
             else if (detected_leg_1_ == true && detected_leg_2_ == false)  
             {
@@ -161,7 +186,7 @@ private:
         {
             if (intensities[i] > threshold && divided == false)
             {
-                RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
+                //RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
                 
                 // Round index 
                 double rounded_ind = roundToNearestHundred(i);
@@ -240,17 +265,16 @@ private:
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 X: %f", x_point_leg_2);
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Y: %f", y_point_leg_2);
 
-
-            // Calculating distance between points
-            dist_p1_to_p2 = calcularDistancia(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
-            RCLCPP_INFO(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
-
             // Calculating middle point
             midPoint = calcularPuntoMedio(x_point_leg_1, y_point_leg_1, x_point_leg_2, y_point_leg_2);
             RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
             RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
 
         }
+
+        // Create and Publish the Transform
+        //RCLCPP_INFO(get_logger(), "Publishing Transform");
+        publishTransformBroadcasterMsg(midPoint);
 
         // Make run the legs detection just once 
         divided = true;
@@ -300,6 +324,9 @@ private:
     // Define the subscription to the Laser Scan 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscription1_;
     rclcpp::CallbackGroup::SharedPtr laser_callback_group_;
+
+    // Define TransformBroadcaster
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
     geometry_msgs::msg::Twist vel_msg_;
     geometry_msgs::msg::Point midPoint;

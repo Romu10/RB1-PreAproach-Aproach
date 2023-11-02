@@ -14,6 +14,8 @@ find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(attach_shelf REQUIRED)
+find_package(tf2_ros REQUIRED)
+
 
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -42,7 +44,7 @@ add_executable(param_vel_node_v2 src/pre_approach_v2.cpp)
 ament_target_dependencies(param_vel_node_v2 rclcpp geometry_msgs sensor_msgs nav_msgs attach_shelf rosidl_default_generators)
 
 add_executable(approach_node src/approach_service_server.cpp)
-ament_target_dependencies(approach_node rclcpp geometry_msgs sensor_msgs nav_msgs std_msgs rosidl_default_generators attach_shelf)
+ament_target_dependencies(approach_node rclcpp geometry_msgs sensor_msgs nav_msgs std_msgs rosidl_default_generators attach_shelf tf2_ros)
 
 install(TARGETS
   param_vel_node
