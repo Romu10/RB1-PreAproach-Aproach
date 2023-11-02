@@ -68,6 +68,12 @@ public:
         return (rounded > number) ? (rounded - multiple) : rounded;
     }
 
+    void calcularCoordenadas(double theta, double d, double *x, double *y) 
+    {
+        *x = d * cos(theta);
+        *y = d * sin(theta);
+    }
+
 private:
     void approachServiceCallback(
     const std::shared_ptr<attach_shelf::srv::GoToLoading::Request> req,
@@ -130,7 +136,12 @@ private:
             if (intensities[i] > threshold && divided == false)
             {
                 RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
+                
+                // Round index 
                 double rounded_ind = roundToNearestHundred(i);
+                
+                // Calcula el ángulo correspondiente al índice 'i'
+                double angle_in_radians = msg->angle_min + i * msg->angle_increment;
                 
                 if (ref_ind == 0.0)
                 {
@@ -141,10 +152,12 @@ private:
                 if (prev_index != -1 && rounded_ind == ref_ind) 
                 {
                     group1_ind.push_back(i);
+                    group1_ind_angle.push_back(angle_in_radians);
                 } 
                 else 
                 {
                     group2_ind.push_back(i);
+                    group2_ind_angle.push_back(angle_in_radians);
                 }
                 prev_index = rounded_ind;
             }
@@ -152,6 +165,8 @@ private:
         
         if (divided == false)
         {
+            group2_ind.erase(group2_ind.begin());
+            
             // Print results
             std::cout << "Grupo 1: ";
             for (int i : group1_ind) {
@@ -165,7 +180,7 @@ private:
             }
             std::cout << std::endl;
 
-            // Calculatin average distance for group 1
+            // Calculating average distance for leg 1
             for (size_t i : group1_ind) 
             {
                 avg_distance_leg_1 += msg->ranges[i];
@@ -173,13 +188,32 @@ private:
             avg_distance_leg_1 /= group1_ind.size();
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Distance is: %f", avg_distance_leg_1);
 
-            // Calculatin average distance for group 2
+            // Calculating average angle for leg 1
+            angle_leg_1 = group1_ind_angle[group1_ind_angle.size()/2];
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Angle is: %f", angle_leg_1);
+
+            // Calculating coordinates point for leg 1
+            calcularCoordenadas(angle_leg_1, avg_distance_leg_1, &x_point_leg_1, &y_point_leg_1);
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 X: %f", x_point_leg_1);
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Y: %f", y_point_leg_1);
+
+            // Calculating average distance for leg 1
             for (size_t i : group2_ind) 
             {
                 avg_distance_leg_2 += msg->ranges[i];
             }
             avg_distance_leg_2 /= group2_ind.size();
             RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Average Distance is: %f", avg_distance_leg_2);
+
+            // Calculating average angle for leg 1
+            angle_leg_2 = group2_ind_angle[group2_ind_angle.size()/2];
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Angle is: %f", angle_leg_2);
+
+            // Calculating coordinates point for leg 1
+            calcularCoordenadas(angle_leg_2, avg_distance_leg_2, &x_point_leg_2, &y_point_leg_2);
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 X: %f", x_point_leg_2);
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Y: %f", y_point_leg_2);
+
         }
 
         // Make run the legs detection just once 
@@ -237,11 +271,19 @@ private:
 
     // First Group Vector
     std::vector<int> group1_ind;
+    std::vector<double> group1_ind_angle;
     float avg_distance_leg_1;
+    float angle_leg_1;
+    double x_point_leg_1;
+    double y_point_leg_1;
 
     // Second Group Vector
     std::vector<int> group2_ind;
+    std::vector<double> group2_ind_angle;
     float avg_distance_leg_2;
+    float angle_leg_2;
+    double x_point_leg_2;
+    double y_point_leg_2;
 
     // First Leg
     bool detected_leg_1_;
@@ -249,12 +291,16 @@ private:
     // Second Leg
     bool detected_leg_2_; 
 
-
     // Service Call Variable
     bool signal;
     bool divided = false;
     int prev_index = -1;
     double ref_ind = 0.0;
+
+    // Coordinate points
+    double theta;
+    double d;
+    double x, y;
     
 
 };
