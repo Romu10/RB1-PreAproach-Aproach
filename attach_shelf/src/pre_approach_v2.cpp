@@ -95,7 +95,7 @@ class VelParam: public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "- Front Robot Distance: %f", front_distance);
         
         // Parameters Set Info
-        if (obs_parameter_ <= 0.0 && dgs_parameter_ <= 0.0 )
+        if (obs_parameter_ < 0.0 && dgs_parameter_ < 0.0 )
         {
             RCLCPP_WARN(this->get_logger(), "Please Set Obstacle & Deegres Parameters & Final Approach");
         }

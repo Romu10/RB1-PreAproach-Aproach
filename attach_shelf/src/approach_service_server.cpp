@@ -61,6 +61,13 @@ public:
         vel_pub->publish(vel_msg_);
     }
 
+    double roundToNearestHundred(double number) 
+    {
+        double multiple = 100.0;
+        double rounded = std::round(number / multiple) * multiple;
+        return (rounded > number) ? (rounded - multiple) : rounded;
+    }
+
 private:
     void approachServiceCallback(
     const std::shared_ptr<attach_shelf::srv::GoToLoading::Request> req,
@@ -75,7 +82,22 @@ private:
             
             RCLCPP_INFO(get_logger(), "Calculating position for shelf's legs");
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            res->complete = true; 
+            if (detected_leg_1_ == true && detected_leg_2_ == true)
+            {
+                res->complete = true; 
+                RCLCPP_INFO(get_logger(), "Service detected both leg");
+            }
+            else if (detected_leg_1_ == true && detected_leg_2_ == false)  
+            {
+                res->complete = false;
+                RCLCPP_INFO(get_logger(), "Service fail because it only detected one leg");
+            }
+            else if (detected_leg_1_ == false && detected_leg_2_ == true)
+            {
+                res->complete = false;
+                RCLCPP_INFO(get_logger(), "Service fail because it only detected one leg");
+            }
+
         }
         else
         {
@@ -105,19 +127,89 @@ private:
 
         for (size_t i = 0; i < intensities.size(); ++i)
         {
-            if (intensities[i] > threshold)
+            if (intensities[i] > threshold && divided == false)
             {
-                //RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
+                RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
+                double rounded_ind = roundToNearestHundred(i);
+                
+                if (ref_ind == 0.0)
+                {
+                    ref_ind = rounded_ind;
+                }
+
+                // Verifica si la diferencia de índice con respecto al índice anterior 
+                if (prev_index != -1 && rounded_ind == ref_ind) 
+                {
+                    group1_ind.push_back(i);
+                } 
+                else 
+                {
+                    group2_ind.push_back(i);
+                }
+                prev_index = rounded_ind;
             }
         }
+        
+        if (divided == false)
+        {
+            // Print results
+            std::cout << "Grupo 1: ";
+            for (int i : group1_ind) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "Grupo 2: ";
+            for (int i : group2_ind) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
+            // Calculatin average distance for group 1
+            for (size_t i : group1_ind) 
+            {
+                avg_distance_leg_1 += msg->ranges[i];
+            }
+            avg_distance_leg_1 /= group1_ind.size();
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Distance is: %f", avg_distance_leg_1);
+
+            // Calculatin average distance for group 2
+            for (size_t i : group2_ind) 
+            {
+                avg_distance_leg_2 += msg->ranges[i];
+            }
+            avg_distance_leg_2 /= group2_ind.size();
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Average Distance is: %f", avg_distance_leg_2);
+        }
+
+        // Make run the legs detection just once 
+        divided = true;
 
         if (signal == true)
         {
-            RCLCPP_INFO_ONCE(get_logger(), "Capturing legs distances");
-            shelf_leg_1 = msg->ranges[450];
-            shelf_leg_2 = msg->ranges[630];
-            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance is: %f", shelf_leg_1);
-            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance is: %f", shelf_leg_2);
+            // Verifing if first leg was detected
+            if (avg_distance_leg_1 > 0)
+            {
+                detected_leg_1_ = true; 
+                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance Detected!");
+            }
+            else 
+            {
+                detected_leg_1_ = false;
+                RCLCPP_INFO_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
+            }
+
+            // Verifing if second leg was detected
+            if (avg_distance_leg_2 > 0)
+            {
+                detected_leg_2_ = true;
+                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance Detected!");
+            }
+            else 
+            {
+                RCLCPP_INFO_ONCE(get_logger(), "No Distance Detected in for second shelf leg");
+            }
+
         }
     
     }
@@ -143,10 +235,26 @@ private:
     float current_degrees_;
     float front_distance = 0.00;
 
-    float shelf_leg_1 = 0.0;
-    float shelf_leg_2 = 0.0;
+    // First Group Vector
+    std::vector<int> group1_ind;
+    float avg_distance_leg_1;
 
+    // Second Group Vector
+    std::vector<int> group2_ind;
+    float avg_distance_leg_2;
+
+    // First Leg
+    bool detected_leg_1_;
+
+    // Second Leg
+    bool detected_leg_2_; 
+
+
+    // Service Call Variable
     bool signal;
+    bool divided = false;
+    int prev_index = -1;
+    double ref_ind = 0.0;
     
 
 };
