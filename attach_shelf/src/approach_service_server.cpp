@@ -16,6 +16,7 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+#include "tf2_ros/static_transform_broadcaster.h"
 
 #include "rclcpp/executors.hpp"
 #include "rclcpp/logging.hpp"
@@ -35,10 +36,15 @@ public:
             std::bind(&MoveRB1::approachServiceCallback, this, std::placeholders::_1, std::placeholders::_2)
         );
 
+    
+        error_yaw_ = 0.0;
+        kp_distance_ = 0.2;
+        kp_yaw_ = 0.2;
+
         RCLCPP_INFO(get_logger(), "Approach Service Server Configured");
 
         // TransformBroadCaster
-        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+        tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
 
         // Inicializa el buffer y el oyente TF2
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -107,15 +113,15 @@ public:
         return puntoMedio;
     }
 
-    void publishTransformBroadcasterMsg(const geometry_msgs::msg::Point& center_point , std::string frame_name)
+    void publishTransformBroadcasterMsg(const geometry_msgs::msg::Point& center_point , std::string frame_child_name, std::string frame_header_name = "robot_front_laser_link")
     {
-        tf2_ros::TransformBroadcaster tf_broadcaster(this->shared_from_this());
+        //tf2_ros::TransformBroadcaster tf_broadcaster(this->shared_from_this());
 
         geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped.header.stamp = this->now();
-        transformStamped.header.frame_id = "robot_base_link"; // Reemplaza con tu marco base
-        transformStamped.child_frame_id = frame_name;
-        transformStamped.transform.translation.x = center_point.x + 0.2;
+        transformStamped.header.frame_id = frame_header_name; // Reemplaza con tu marco base
+        transformStamped.child_frame_id = frame_child_name;
+        transformStamped.transform.translation.x = center_point.x;
         transformStamped.transform.translation.y = center_point.y;
         transformStamped.transform.translation.z = 0.0; // Suponiendo una transformación 2D
         transformStamped.transform.rotation.x = 0.0;
@@ -123,7 +129,7 @@ public:
         transformStamped.transform.rotation.z = 0.0;
         transformStamped.transform.rotation.w = 1.0;
 
-        tf_broadcaster.sendTransform(transformStamped);
+        tf_broadcaster_->sendTransform(transformStamped);
     }
 
     void goToTransform()
@@ -132,7 +138,7 @@ public:
         geometry_msgs::msg::TransformStamped transform;
         try 
         {
-            transform = tf_buffer_->lookupTransform("robot_base_link", "cart_frame", tf2::TimePoint());
+            transform = tf_buffer_->lookupTransform("robot_front_laser_link", "cart_frame", tf2::TimePoint());
         } 
         catch (tf2::TransformException &ex) 
         {
@@ -205,12 +211,14 @@ private:
             {
                 RCLCPP_INFO(get_logger(), "Service detected both leg");
 
+                /*
                 // Make the robot move to the new transform 
                 while (rclcpp::ok() && error_distance_ > 0.1)
                 {
                     RCLCPP_WARN(get_logger(), "- Going to transform");
-                    goToTransform();
+                    // goToTransform();
                 }
+                */
 
                 if (error_distance_ < 0.1)
                 {
@@ -241,6 +249,8 @@ private:
     void odometryCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         current_theta_ = msg->pose.pose.orientation.z;  
+        current_x_ = msg->pose.pose.orientation.x; 
+        current_y_ = msg->pose.pose.orientation.y; 
         current_degrees_ = ((current_theta_ * 2) * 180) / M_PI;
         //RCLCPP_WARN(get_logger(), "Current Degrees: %f", current_degrees_);
     }
@@ -253,7 +263,8 @@ private:
 
         const std::vector<float>& intensities = msg->intensities;
         float threshold = 7500.0;
-
+        //signal = true;
+        
         if (signal == true)
         {
 
@@ -336,7 +347,7 @@ private:
                 RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Angle is: %f", avg_angle_leg_1);
 
                 // Calculating average angle for leg 1
-                angle_leg_1 = avg_angle_leg_1 * -1;
+                angle_leg_1 = avg_angle_leg_1 * 1;
                 RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Angle is: %f", angle_leg_1);
 
                 // Calculating coordinates point for leg 1
@@ -363,7 +374,7 @@ private:
                 RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Average Angle is: %f", avg_angle_leg_2);
 
                 // Calculating average angle for leg 2
-                angle_leg_2 = avg_angle_leg_2 * -1;
+                angle_leg_2 = avg_angle_leg_2 * 1;
                 RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Angle is: %f", angle_leg_2);
 
                 // Calculating coordinates point for leg 2
@@ -379,9 +390,24 @@ private:
 
                 // Calculating middle point
                 midPoint = calcularPuntoMedio(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
+                // midPoint.x = midPoint.x + 0.20;
                 RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
                 RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
-                
+
+                // Calculating distance between middle point and robot
+                dist_rb1_to_midpoint = calcularDistancia(current_x_, current_y_, midPoint.x, midPoint.y);
+                RCLCPP_INFO(get_logger(), "Distance between Robot and Middle Point is: %f", dist_rb1_to_midpoint);
+                error_distance_ = dist_rb1_to_midpoint;
+
+                // Create and Publish the Transforms
+                publishTransformBroadcasterMsg(midPoint, "cart_frame");
+                publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
+                publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
+                // worldPoint.x = current_x_ + midPoint.x;
+                // worldPoint.y = current_y_ + midPoint.y;
+                // publishTransformBroadcasterMsg(worldPoint, "cart_frame2", "robot_odom");
+                RCLCPP_INFO_ONCE(get_logger(), "Transform Published");
+            
             }
 
             // Make run the legs detection just once 
@@ -392,7 +418,6 @@ private:
             {
                 detected_leg_1_ = true; 
                 RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance Detected!");
-
             }
             else 
             {
@@ -413,12 +438,7 @@ private:
 
             if (detected_leg_1_ == true && detected_leg_2_ == true)
             {
-                // Create and Publish the Transform
-                RCLCPP_INFO_ONCE(get_logger(), "Publishing Transform");
-                publishTransformBroadcasterMsg(midPoint, "cart_frame");
-                publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
-                publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
-
+                // goToTransform();
             }
         }
     
@@ -441,7 +461,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr laser_callback_group_;
 
     // Define TransformBroadcaster
-    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_;
     
     // Define Transfor Listener
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -455,10 +475,14 @@ private:
     double desired_yaw_ = 0.00;
 
     geometry_msgs::msg::Twist vel_msg_;
+    geometry_msgs::msg::Point worldPoint;
     geometry_msgs::msg::Point midPoint;
     geometry_msgs::msg::Point pointLeg1;
     geometry_msgs::msg::Point pointLeg2;
+    float dist_rb1_to_midpoint;
     float current_theta_;  
+    float current_x_;  
+    float current_y_;  
     float current_degrees_;
     float front_distance = 0.00;
 
