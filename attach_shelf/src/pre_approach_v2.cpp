@@ -95,7 +95,7 @@ class VelParam: public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "- Front Robot Distance: %f", front_distance);
         
         // Parameters Set Info
-        if (obs_parameter_ < 0.0 && dgs_parameter_ < 0.0 )
+        if (obs_parameter_ < 0.1 && dgs_parameter_ < 1 )
         {
             RCLCPP_WARN(this->get_logger(), "Please Set Obstacle & Deegres Parameters & Final Approach");
         }
@@ -125,11 +125,11 @@ class VelParam: public rclcpp::Node
                 RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Rotate service not available, waiting again...");
                 
             }
-
             
             if (rotate_srv_done_ == true)
             {
                 RCLCPP_INFO(this->get_logger(), "Rotate Service Completed");
+                RCLCPP_INFO(this->get_logger(), "Rotate Result: %s", glb_rotate_result_.c_str());
             }
             else if (rotate_requiered == false)
             {
@@ -144,48 +144,68 @@ class VelParam: public rclcpp::Node
                 rotate_requiered = true;
             }
 
-            if (glb_rotate_result_ == "Rotation complete" && rotate_srv_done_ == true)
+        }
+        else
+        {
+            if (glb_rotate_result_ != "Rotation complete")
             {
-                RCLCPP_WARN(this->get_logger(), "Starting Indentification");
-                
-                if (fa_parameter_ == true)
+                RCLCPP_INFO_ONCE(this->get_logger(), "Rotate result Not Received Properly");
+            }
+            else if (glb_rotate_result_.empty())
+            {
+                RCLCPP_INFO(this->get_logger(), "Working in Rotate result");
+            }
+        }
+
+        if (rotate_srv_done_ == true) 
+        {
+            RCLCPP_WARN(this->get_logger(), "- Rotate Service Complete");
+        } 
+        else 
+        {
+            RCLCPP_WARN(this->get_logger(), "- Rotate Service Incomplete");
+        }
+
+        if (rotate_srv_done_ == true)
+        {
+           
+            if (fa_parameter_ == true)
+            {
+                // Wait until approach service server is ready.
+                while (!approach_client_->wait_for_service(1s) && approach_srv_done_ == false) 
                 {
-                    // Wait until approach service server is ready.
-                    while (!approach_client_->wait_for_service(1s) && approach_srv_done_ == false) 
+                    if (!rclcpp::ok()) 
                     {
-                        if (!rclcpp::ok()) 
-                        {
-                            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Approach Service - Interrupted while waiting for the service. Exiting.");
-                            return;
-                        }
-                        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Approach service not available, waiting again...");
+                        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Approach Service - Interrupted while waiting for the service. Exiting.");
+                        return;
                     }
-                    
-                    if (approach_srv_done_ == true) 
-                    {
-                        RCLCPP_INFO(this->get_logger(), "Approach Service Completed");
-                    }
-                    else if (approach_required == false)
-                    {
-                         // Construct the approach request
-                        auto approach_request = std::make_shared<attach_shelf::srv::GoToLoading::Request>();
-                        approach_request->attach_to_shelf = fa_parameter_;
+                    RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Approach service not available, waiting again...");
+                }
+                
+                if (approach_srv_done_ == true) 
+                {
+                    RCLCPP_WARN(this->get_logger(), "- Approach Service Complete");
+                }
+                else if (approach_required == false)
+                {
+                    // Construct the approach request
+                    auto approach_request = std::make_shared<attach_shelf::srv::GoToLoading::Request>();
+                    approach_request->attach_to_shelf = fa_parameter_;
 
-                        // Send to the approach service server the request
-                        auto approach_result_future = approach_client_->async_send_request(approach_request, std::bind(&VelParam::approach_response_callback, this, std::placeholders::_1));
+                    // Send to the approach service server the request
+                    auto approach_result_future = approach_client_->async_send_request(approach_request, std::bind(&VelParam::approach_response_callback, this, std::placeholders::_1));
 
-                        // send just once
-                        approach_required = true;
-                    }
+                    // send just once
+                    approach_required = true;
                 }
                 else 
                 {
-                    RCLCPP_WARN(this->get_logger(), "Approach Parameter setted to FALSE");
+                    RCLCPP_WARN(this->get_logger(), "- Waiting for Approach Service to Complete");
                 }
             }
-            else
+            else 
             {
-                RCLCPP_INFO(this->get_logger(), "Waiting");
+                RCLCPP_WARN(this->get_logger(), "- Approach Parameter setted to FALSE");
             }
 
         }
@@ -194,7 +214,7 @@ class VelParam: public rclcpp::Node
 
     void rotate_response_callback(rclcpp::Client<attach_shelf::srv::Rotate>::SharedFuture future) 
     {
-        auto status = future.wait_for(1s);
+        auto status = future.wait_for(3s);
         auto rotate_result_ = future.get()->result;
         glb_rotate_result_ = rotate_result_;
         if (status == std::future_status::ready) 
@@ -211,7 +231,7 @@ class VelParam: public rclcpp::Node
 
     void approach_response_callback(rclcpp::Client<attach_shelf::srv::GoToLoading>::SharedFuture future) 
     {
-        auto status = future.wait_for(1s);
+        auto status = future.wait_for(3s);
         auto approach_result_ = future.get()->complete;
         glb_approach_result_ = approach_result_;
         if (status == std::future_status::ready) 
