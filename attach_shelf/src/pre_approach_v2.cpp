@@ -239,16 +239,16 @@ class VelParam: public rclcpp::Node
             if (approach_result_ == true) 
             {
                 approach_srv_done_ = true;
-                RCLCPP_INFO(this->get_logger(), "Approach complete");
+                RCLCPP_WARN(this->get_logger(), "Approach complete");
             } 
             else 
             {
-                RCLCPP_INFO(this->get_logger(), "Approach incomplete");
+                RCLCPP_WARN(this->get_logger(), "Approach incomplete");
             }
         } 
         else 
         {
-            RCLCPP_INFO(this->get_logger(), "Approach Service In-Progress...");
+            RCLCPP_WARN(this->get_logger(), "Approach Service In-Progress...");
         }
     }
 

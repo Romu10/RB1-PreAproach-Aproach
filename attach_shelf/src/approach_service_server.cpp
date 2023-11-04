@@ -41,7 +41,7 @@ public:
 
         // PID Parameters 
         error_yaw_ = 0.1;
-        kp_distance_ = 0.1;
+        kp_distance_ = 0.2;
         kp_yaw_ = 0.2;
 
 
@@ -183,11 +183,13 @@ public:
 
         // Publish the linear and angular velocity
         auto twist_msg = std::make_unique<geometry_msgs::msg::Twist>();
-        if (error_distance_ < 0.1)
+        if (error_distance_ < 0.1 && tf_reached == false)
         {
             twist_msg->linear.x = 0.00;
             twist_msg->angular.z = 0.00;
             RCLCPP_WARN(get_logger(), "RB1 in Position");
+            desired_pos = current_y_pos - 0.65;
+            tf_reached = true;
         }
         else 
         {
@@ -222,20 +224,11 @@ private:
             {
                 RCLCPP_INFO(get_logger(), "Service detected both leg");
 
-                /*
-                // Make the robot move to the new transform 
-                while (rclcpp::ok() && error_distance_ > 0.1)
-                {
-                    RCLCPP_WARN(get_logger(), "- Going to transform");
-                    // goToTransform();
-                }
-                */
-
-                if (error_distance_ < 0.1)
-                {
+                if (final_pos == true)
+                {   
                     res->complete = true; 
                 }
-                else if (error_distance_ > midPoint.x) 
+                else
                 {
                     RCLCPP_INFO(get_logger(), "Robot Moving in wrong way");
                 }
@@ -261,9 +254,39 @@ private:
     {
         current_theta_ = msg->pose.pose.orientation.z;  
         current_x_ = msg->pose.pose.orientation.x; 
+        current_y_pos = msg->pose.pose.position.y;
         current_y_ = msg->pose.pose.orientation.y; 
         current_degrees_ = ((current_theta_ * 2) * 180) / M_PI;
-        //RCLCPP_WARN(get_logger(), "Current Degrees: %f", current_degrees_);
+       
+        //rate_.sleep();
+        
+        
+        if (tf_reached == true)
+        {
+            auto twist_msg = std::make_unique<geometry_msgs::msg::Twist>();
+            RCLCPP_INFO(get_logger(), "Current Position: %f", current_y_pos);
+            RCLCPP_INFO(get_logger(), "Target Position: %f", desired_pos);
+
+            if (desired_pos < current_y_pos)
+            {
+                RCLCPP_WARN(get_logger(), "RB1 Moving to Final Position");
+                twist_msg->linear.x = 0.05;
+                publisher_->publish(std::move(twist_msg));
+            }
+            else if (current_y_pos < desired_pos)
+            {
+                twist_msg->linear.x = 0.0;
+                publisher_->publish(std::move(twist_msg));
+                RCLCPP_WARN(get_logger(), "RB1 Reached Final Position");
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                final_pos = true;
+            }
+        }
+        else 
+        {
+            RCLCPP_WARN(get_logger(), "RB1 working to reach final pos");
+        }
+        
     }
 
     void Laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) 
@@ -276,8 +299,9 @@ private:
         double angle_in_radians;
         float threshold = 7500.0;
         rate_.sleep();
+        // signal = true;
         
-        if (signal == true)
+        if (signal == true && tf_reached == false)
         {
 
             for (size_t i = 0; i < intensities.size(); ++i)
@@ -498,7 +522,7 @@ private:
         }
         else 
         {
-            RCLCPP_WARN(get_logger(), "Approach Service Not Called Yet");
+            RCLCPP_WARN(get_logger(), "Approach Service Not Called Or Maybe Approach TF Done");
         }
     
     }
@@ -546,9 +570,13 @@ private:
     float dist_rb1_to_midpoint;
     float current_theta_;  
     float current_x_;  
+    float current_y_pos;  
     float current_y_;  
     float current_degrees_;
     float front_distance = 0.00;
+    bool tf_reached = false;
+    bool final_pos = false;
+    float desired_pos;
 
     // First Group Vector
     std::vector<int> group1_ind;
