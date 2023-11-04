@@ -25,23 +25,25 @@
 #include <cmath>
 #include <functional>
 
+using namespace std::chrono_literals;
+
 class MoveRB1 : public rclcpp::Node
 {
 public:
-    MoveRB1() : Node("attach_robot_node"), rate_(1)
+    MoveRB1() : Node("attach_robot_node"), rate_(5)
     {
         // ROS Services
         service = create_service<attach_shelf::srv::GoToLoading>(
             "approach_shelf",
             std::bind(&MoveRB1::approachServiceCallback, this, std::placeholders::_1, std::placeholders::_2)
         );
+        RCLCPP_INFO(get_logger(), "Approach Service Server Configured");
 
-    
-        error_yaw_ = 0.0;
-        kp_distance_ = 0.2;
+        // PID Parameters 
+        error_yaw_ = 0.1;
+        kp_distance_ = 0.1;
         kp_yaw_ = 0.2;
 
-        RCLCPP_INFO(get_logger(), "Approach Service Server Configured");
 
         // TransformBroadCaster
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -76,6 +78,10 @@ public:
         "/scan", 1,
         std::bind(&MoveRB1::Laser_callback, this, std::placeholders::_1),
         options1);
+
+        // Timer Configuration
+        timer_ = this->create_wall_timer(
+        1000ms, std::bind(&MoveRB1::timer_callback, this));
 
     }
 
@@ -164,10 +170,10 @@ public:
         double q_w = transform.transform.rotation.w;
 
         double yaw = atan2(2.0 * (q_x * q_y + q_w * q_z), q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z);
+        RCLCPP_INFO(get_logger(), "Yaw: %f", yaw);
 
         // Calculate the orientation error
         error_yaw_ = desired_yaw_ - yaw;
-        RCLCPP_INFO(get_logger(), "Yaw: %f", yaw);
 
         // Calcula la velocidad lineal y angular
         double linear_velocity = kp_distance_ * error_distance_;
@@ -181,7 +187,7 @@ public:
         {
             twist_msg->linear.x = 0.00;
             twist_msg->angular.z = 0.00;
-            RCLCPP_INFO(get_logger(), "RB1 in Position");
+            RCLCPP_WARN(get_logger(), "RB1 in Position");
         }
         else 
         {
@@ -191,6 +197,11 @@ public:
         }
         publisher_->publish(std::move(twist_msg));
 
+    }
+
+    void timer_callback()
+    {
+            
     }
 
 private:
@@ -258,14 +269,13 @@ private:
     void Laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) 
     {   
     
-        front_distance = msg->ranges[540];
+        //front_distance = msg->ranges[540];
         //RCLCPP_WARN(this->get_logger(), "Front Distance: %f", front_distance);
 
         const std::vector<float>& intensities = msg->intensities;
+        double angle_in_radians;
         float threshold = 7500.0;
-        bool done = false;
         rate_.sleep();
-        signal = true;
         
         if (signal == true)
         {
@@ -276,21 +286,11 @@ private:
                 {
                     //RCLCPP_INFO(get_logger(), "Índice: %zu - Intensidad: %f", i, intensities[i]);
                     
-                    // Round index 
-                    double rounded_ind = roundToNearestHundred(i);
-                    
                     // Calcula el ángulo correspondiente al índice 'i'
-                    double angle_in_radians = msg->angle_min + i * msg->angle_increment;
-                    
-                    // Lo que me falta es dividir los indices cuando el robot esta mas cerca del carrito
-                    if (ref_ind == 0.0)
-                    {
-                        ref_ind = rounded_ind;
-                        done = true; 
-                    }
+                    angle_in_radians = msg->angle_min + i * msg->angle_increment;
 
                     // Verifica si la diferencia de índice con respecto al índice anterior 
-                    if (prev_index != -1 && rounded_ind == ref_ind) 
+                    if (prev_index != -1 && i < 540) 
                     {
                         group1_ind.push_back(i);
                         group1_ind_angle.push_back(angle_in_radians);
@@ -300,131 +300,133 @@ private:
                         group2_ind.push_back(i);
                         group2_ind_angle.push_back(angle_in_radians);
                     }
-                    prev_index = rounded_ind;
+                    prev_index = i;
                 }
             }
+
             
-            if (divided == false)
+        
+            //group2_ind.erase(group2_ind.begin());
+            //group2_ind_angle.erase(group2_ind_angle.begin());
+            
+            /*
+            // Print results
+            std::cout << "Index Group 1: ";
+            for (int i : group1_ind) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "Angle Group 1: ";
+            for (double i : group1_ind_angle) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "Index Group 2: ";
+            for (int i : group2_ind) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "Angles Group 2: ";
+            for (double i : group2_ind_angle) {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+            */
+            
+
+            // Calculating average distance for leg 1
+            for (size_t i : group1_ind) 
             {
-                group2_ind.erase(group2_ind.begin());
-                group2_ind_angle.erase(group2_ind_angle.begin());
-                
-                
-                // Print results
-                std::cout << "Index Group 1: ";
-                for (int i : group1_ind) {
-                    std::cout << i << " ";
-                }
-                std::cout << std::endl;
-
-                std::cout << "Angle Group 1: ";
-                for (double i : group1_ind_angle) {
-                    std::cout << i << " ";
-                }
-                std::cout << std::endl;
-
-                std::cout << "Index Group 2: ";
-                for (int i : group2_ind) {
-                    std::cout << i << " ";
-                }
-                std::cout << std::endl;
-
-                std::cout << "Angles Group 2: ";
-                for (double i : group2_ind_angle) {
-                    std::cout << i << " ";
-                }
-                std::cout << std::endl;
-                
-
-                // Calculating average distance for leg 1
-                for (size_t i : group1_ind) 
-                {
-                    avg_distance_leg_1 += msg->ranges[i];
-                }
-                avg_distance_leg_1 /= group1_ind.size();
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Distance is: %f", avg_distance_leg_1);
-
-                // Calculating average angle for leg 1
-                for (size_t i : group1_ind_angle) 
-                {
-                    avg_angle_leg_1 += group1_ind_angle[i];
-                }
-                avg_angle_leg_1 /= group1_ind_angle.size();
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Angle is: %f", avg_angle_leg_1);
-
-                // Calculating average angle for leg 1
-                angle_leg_1 = avg_angle_leg_1 * 1;
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Angle is: %f", angle_leg_1);
-
-                // Calculating coordinates point for leg 1
-                calcularCoordenadas(angle_leg_1, avg_distance_leg_1, &x_point_leg_1, &y_point_leg_1);
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 X: %f", x_point_leg_1);
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Y: %f", y_point_leg_1);
-                pointLeg1.x = x_point_leg_1;
-                pointLeg1.y = y_point_leg_1;
-
-                // Calculating average distance for leg 2
-                for (size_t i : group2_ind) 
-                {
-                    avg_distance_leg_2 += msg->ranges[i];
-                }
-                avg_distance_leg_2 /= group2_ind.size();
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Average Distance is: %f", avg_distance_leg_2);
-
-                // Calculating average angle for leg 2
-                for (size_t i : group2_ind_angle) 
-                {
-                    avg_angle_leg_2 += group2_ind_angle[i];
-                }
-                avg_angle_leg_2 /= group2_ind_angle.size();
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Average Angle is: %f", avg_angle_leg_2);
-
-                // Calculating average angle for leg 2
-                angle_leg_2 = avg_angle_leg_2 * 1;
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Angle is: %f", angle_leg_2);
-
-                // Calculating coordinates point for leg 2
-                calcularCoordenadas(angle_leg_2, avg_distance_leg_2, &x_point_leg_2, &y_point_leg_2);
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 X: %f", x_point_leg_2);
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Y: %f", y_point_leg_2);
-                pointLeg2.x = x_point_leg_2;
-                pointLeg2.y = y_point_leg_2;
-
-                /*
-                // Calculating distance between points
-                dist_p1_to_p2 = calcularDistancia(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
-                RCLCPP_INFO_ONCE(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
-                */
-
-                // Calculating middle point
-                midPoint = calcularPuntoMedio(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
-                // midPoint.x = midPoint.x + 0.20;
-                RCLCPP_INFO_ONCE(get_logger(), "Middle Point X: %f", midPoint.x);
-                RCLCPP_INFO_ONCE(get_logger(), "Middle Point Y: %f", midPoint.y);
-
-                /*
-                // Calculating distance between middle point and robot
-                dist_rb1_to_midpoint = calcularDistancia(current_x_, current_y_, midPoint.x, midPoint.y);
-                RCLCPP_INFO_ONCE(get_logger(), "Distance between Robot and Middle Point is: %f", dist_rb1_to_midpoint);
-                error_distance_ = dist_rb1_to_midpoint;
-                */
-
-                // Create and Publish the Transforms
-                publishTransformBroadcasterMsg(midPoint, "cart_frame");
-                // publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
-                // publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
-                // worldPoint.x = current_x_ + midPoint.x;
-                // worldPoint.y = current_y_ + midPoint.y;
-                // publishTransformBroadcasterMsg(worldPoint, "cart_frame2", "robot_odom");
-                RCLCPP_INFO(get_logger(), "Transform Published");
-                
-                // Clean Working Vectors
-                group1_ind.clear();
-                group1_ind_angle.clear();
-                group2_ind.clear();
-                group2_ind_angle.clear();
-            
+                avg_distance_leg_1 += msg->ranges[i];
             }
+            avg_distance_leg_1 /= group1_ind.size();
+            RCLCPP_INFO(get_logger(), "Shelf Leg 1 Average Distance is: %f", avg_distance_leg_1);
+
+            /*
+            // Calculating average angle for leg 1
+            for (size_t i : group1_ind_angle) 
+            {
+                avg_angle_leg_1 += group1_ind_angle[i];
+            }
+            RCLCPP_WARN(get_logger(), "Shelf Leg 1 Total Angle is: %f", avg_angle_leg_1);
+            avg_angle_leg_1 /= group1_ind_angle.size();
+            RCLCPP_WARN(get_logger(), "Shelf Leg 1 Group Size: %li", group1_ind_angle.size());
+            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Average Angle is: %f", avg_angle_leg_1);
+            */
+
+            // Calculating average angle for leg 1
+            // angle_leg_1 = avg_angle_leg_1 * 1;
+            angle_leg_1 = group1_ind_angle[4];
+            RCLCPP_INFO(get_logger(), "Shelf Leg 1 Angle is: %f", angle_leg_1);
+
+            // Calculating coordinates point for leg 1
+            calcularCoordenadas(angle_leg_1, avg_distance_leg_1, &x_point_leg_1, &y_point_leg_1);
+            RCLCPP_INFO(get_logger(), "Shelf Leg 1 X: %f", x_point_leg_1);
+            RCLCPP_INFO(get_logger(), "Shelf Leg 1 Y: %f", y_point_leg_1);
+            pointLeg1.x = x_point_leg_1;
+            pointLeg1.y = y_point_leg_1;
+
+            // Calculating average distance for leg 2
+            for (size_t i : group2_ind) 
+            {
+                avg_distance_leg_2 += msg->ranges[i];
+            }
+            avg_distance_leg_2 /= group2_ind.size();
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Average Distance is: %f", avg_distance_leg_2);
+
+            /*
+            // Calculating average angle for leg 2
+            for (size_t i : group2_ind_angle) 
+            {
+                avg_angle_leg_2 += group2_ind_angle[i];
+            }
+            avg_angle_leg_2 /= group2_ind_angle.size();
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Group Size: %li", group2_ind_angle.size());
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Average Angle is: %f", avg_angle_leg_2);
+            */
+            
+            // Calculating average angle for leg 2
+            //angle_leg_2 = avg_angle_leg_2 * 1;
+            angle_leg_2 = group2_ind_angle[4];
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Angle is: %f", angle_leg_2);
+
+            double current_angle_ = ((angle_leg_2 * 2) * 180) / M_PI;
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Angle in Degree is: %f", current_angle_);
+
+            // Calculating coordinates point for leg 2
+            calcularCoordenadas(angle_leg_2, avg_distance_leg_2, &x_point_leg_2, &y_point_leg_2);
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 X: %f", x_point_leg_2);
+            RCLCPP_INFO(get_logger(), "Shelf Leg 2 Y: %f", y_point_leg_2);
+            pointLeg2.x = x_point_leg_2;
+            pointLeg2.y = y_point_leg_2;
+
+            /*
+            // Calculating distance between points
+            dist_p1_to_p2 = calcularDistancia(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
+            RCLCPP_INFO_ONCE(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
+            */
+
+            // Clean Working Vectors
+            group1_ind.clear();
+            group1_ind_angle.clear();
+            group2_ind.clear();
+            group2_ind_angle.clear();
+
+            // Calculating middle point
+            midPoint = calcularPuntoMedio(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
+            RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
+            RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
+
+            /*
+            // Calculating distance between middle point and robot
+            dist_rb1_to_midpoint = calcularDistancia(current_x_, current_y_, midPoint.x, midPoint.y);
+            RCLCPP_INFO_ONCE(get_logger(), "Distance between Robot and Middle Point is: %f", dist_rb1_to_midpoint);
+            error_distance_ = dist_rb1_to_midpoint;
+            */
+            
 
             // Make run the legs detection just once 
             divided = false;
@@ -433,29 +435,70 @@ private:
             if (avg_distance_leg_1 > 0)
             {
                 detected_leg_1_ = true; 
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance Detected!");
+                RCLCPP_INFO(get_logger(), "Shelf Leg 1 Distance Detected!");
             }
             else 
             {
                 detected_leg_1_ = false;
-                RCLCPP_INFO_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
+                RCLCPP_ERROR(get_logger(), "No Distance Detected in for first shelf leg");
             }
 
             // Verifing if second leg was detected
             if (avg_distance_leg_2 > 0)
             {
                 detected_leg_2_ = true;
-                RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance Detected!");
+                RCLCPP_INFO(get_logger(), "Shelf Leg 2 Distance Detected!");
             }
             else 
             {
-                RCLCPP_INFO_ONCE(get_logger(), "No Distance Detected in for second shelf leg");
+                RCLCPP_ERROR(get_logger(), "No Distance Detected in for second shelf leg");
             }
 
             if (detected_leg_1_ == true && detected_leg_2_ == true)
             {
-                // goToTransform();
+                if (std::isnan(midPoint.x) && std::isnan(midPoint.y))
+                {
+                    RCLCPP_ERROR(get_logger(), "Transform Not Published Because Mid Point is Empty");
+                    avg_distance_leg_1 = 0.0;
+                    avg_distance_leg_2 = 0.0;
+                    avg_angle_leg_1 = 0.0;
+                    avg_angle_leg_2 = 0.0;
+                    angle_leg_1 = 0.0;
+                    angle_leg_2 = 0.0;
+                    group1_ind.clear();
+                    group1_ind_angle.clear();
+                    group2_ind.clear();
+                    group2_ind_angle.clear();
+                }
+                else if (std::isinf(midPoint.x) && std::isinf(midPoint.y))
+                {
+                    RCLCPP_ERROR(get_logger(), "Transform Not Published Because Mid Point is Inf");
+                    avg_distance_leg_1 = 0.0;
+                    avg_distance_leg_2 = 0.0;
+                    avg_angle_leg_1 = 0.0;
+                    avg_angle_leg_2 = 0.0;
+                    angle_leg_1 = 0.0;
+                    angle_leg_2 = 0.0;
+                    group1_ind.clear();
+                    group1_ind_angle.clear();
+                    group2_ind.clear();
+                    group2_ind_angle.clear();
+                }
+                else 
+                {
+                    // Create and Publish the Transforms
+                    publishTransformBroadcasterMsg(midPoint, "cart_frame");
+                    publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
+                    publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
+                    RCLCPP_WARN(get_logger(), "Transform Published");
+
+                    goToTransform();
+                }
             }
+        }
+        else 
+        {
+            RCLCPP_WARN(get_logger(), "Approach Service Not Called Yet");
         }
     
     }
@@ -483,6 +526,9 @@ private:
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
+    // Define Timer 
+    rclcpp::TimerBase::SharedPtr timer_;
+
     // PID Variables for following the transform
     double error_distance_;
     double error_yaw_;
@@ -508,7 +554,7 @@ private:
     std::vector<int> group1_ind;
     std::vector<double> group1_ind_angle;
     float avg_distance_leg_1;
-    float avg_angle_leg_1;
+    double avg_angle_leg_1;
     float angle_leg_1;
     double x_point_leg_1;
     double y_point_leg_1;
@@ -517,7 +563,7 @@ private:
     std::vector<int> group2_ind;
     std::vector<double> group2_ind_angle;
     float avg_distance_leg_2;
-    float avg_angle_leg_2;
+    double avg_angle_leg_2;
     float angle_leg_2;
     double x_point_leg_2;
     double y_point_leg_2;

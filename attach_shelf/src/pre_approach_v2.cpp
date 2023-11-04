@@ -102,7 +102,7 @@ class VelParam: public rclcpp::Node
 
         if (obs_parameter_ != 0.0 && task_1 == false)
         {
-            message.linear.x = 0.4;
+            message.linear.x = 0.2;
             publisher_->publish(message);
             RCLCPP_INFO(this->get_logger(), "- Moving Forward");
         }
@@ -231,7 +231,7 @@ class VelParam: public rclcpp::Node
 
     void approach_response_callback(rclcpp::Client<attach_shelf::srv::GoToLoading>::SharedFuture future) 
     {
-        auto status = future.wait_for(3s);
+        auto status = future.wait_for(1s);
         auto approach_result_ = future.get()->complete;
         glb_approach_result_ = approach_result_;
         if (status == std::future_status::ready) 
