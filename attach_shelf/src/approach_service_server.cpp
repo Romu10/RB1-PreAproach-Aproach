@@ -28,7 +28,7 @@
 class MoveRB1 : public rclcpp::Node
 {
 public:
-    MoveRB1() : Node("attach_robot_node")
+    MoveRB1() : Node("attach_robot_node"), rate_(1)
     {
         // ROS Services
         service = create_service<attach_shelf::srv::GoToLoading>(
@@ -44,7 +44,7 @@ public:
         RCLCPP_INFO(get_logger(), "Approach Service Server Configured");
 
         // TransformBroadCaster
-        tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
         // Inicializa el buffer y el oyente TF2
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -73,7 +73,7 @@ public:
         options1.callback_group = laser_callback_group_;
 
         subscription1_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        "/scan", 10,
+        "/scan", 1,
         std::bind(&MoveRB1::Laser_callback, this, std::placeholders::_1),
         options1);
 
@@ -263,7 +263,9 @@ private:
 
         const std::vector<float>& intensities = msg->intensities;
         float threshold = 7500.0;
-        //signal = true;
+        bool done = false;
+        rate_.sleep();
+        signal = true;
         
         if (signal == true)
         {
@@ -280,9 +282,11 @@ private:
                     // Calcula el ángulo correspondiente al índice 'i'
                     double angle_in_radians = msg->angle_min + i * msg->angle_increment;
                     
+                    // Lo que me falta es dividir los indices cuando el robot esta mas cerca del carrito
                     if (ref_ind == 0.0)
                     {
                         ref_ind = rounded_ind;
+                        done = true; 
                     }
 
                     // Verifica si la diferencia de índice con respecto al índice anterior 
@@ -305,6 +309,7 @@ private:
                 group2_ind.erase(group2_ind.begin());
                 group2_ind_angle.erase(group2_ind_angle.begin());
                 
+                
                 // Print results
                 std::cout << "Index Group 1: ";
                 for (int i : group1_ind) {
@@ -312,13 +317,13 @@ private:
                 }
                 std::cout << std::endl;
 
-                std::cout << "Index Group 2: ";
+                std::cout << "Angle Group 1: ";
                 for (double i : group1_ind_angle) {
                     std::cout << i << " ";
                 }
                 std::cout << std::endl;
 
-                std::cout << "Angles Group 1: ";
+                std::cout << "Index Group 2: ";
                 for (int i : group2_ind) {
                     std::cout << i << " ";
                 }
@@ -329,6 +334,7 @@ private:
                     std::cout << i << " ";
                 }
                 std::cout << std::endl;
+                
 
                 // Calculating average distance for leg 1
                 for (size_t i : group1_ind) 
@@ -384,34 +390,44 @@ private:
                 pointLeg2.x = x_point_leg_2;
                 pointLeg2.y = y_point_leg_2;
 
+                /*
                 // Calculating distance between points
                 dist_p1_to_p2 = calcularDistancia(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
-                RCLCPP_INFO(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
+                RCLCPP_INFO_ONCE(get_logger(), "Distance between points is: %f", dist_p1_to_p2);
+                */
 
                 // Calculating middle point
                 midPoint = calcularPuntoMedio(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
                 // midPoint.x = midPoint.x + 0.20;
-                RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
-                RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
+                RCLCPP_INFO_ONCE(get_logger(), "Middle Point X: %f", midPoint.x);
+                RCLCPP_INFO_ONCE(get_logger(), "Middle Point Y: %f", midPoint.y);
 
+                /*
                 // Calculating distance between middle point and robot
                 dist_rb1_to_midpoint = calcularDistancia(current_x_, current_y_, midPoint.x, midPoint.y);
-                RCLCPP_INFO(get_logger(), "Distance between Robot and Middle Point is: %f", dist_rb1_to_midpoint);
+                RCLCPP_INFO_ONCE(get_logger(), "Distance between Robot and Middle Point is: %f", dist_rb1_to_midpoint);
                 error_distance_ = dist_rb1_to_midpoint;
+                */
 
                 // Create and Publish the Transforms
                 publishTransformBroadcasterMsg(midPoint, "cart_frame");
-                publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
-                publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
+                // publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
+                // publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
                 // worldPoint.x = current_x_ + midPoint.x;
                 // worldPoint.y = current_y_ + midPoint.y;
                 // publishTransformBroadcasterMsg(worldPoint, "cart_frame2", "robot_odom");
-                RCLCPP_INFO_ONCE(get_logger(), "Transform Published");
+                RCLCPP_INFO(get_logger(), "Transform Published");
+                
+                // Clean Working Vectors
+                group1_ind.clear();
+                group1_ind_angle.clear();
+                group2_ind.clear();
+                group2_ind_angle.clear();
             
             }
 
             // Make run the legs detection just once 
-            divided = true;
+            divided = false;
         
             // Verifing if first leg was detected
             if (avg_distance_leg_1 > 0)
@@ -461,7 +477,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr laser_callback_group_;
 
     // Define TransformBroadcaster
-    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     
     // Define Transfor Listener
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -473,6 +489,8 @@ private:
     double kp_distance_;
     double kp_yaw_;
     double desired_yaw_ = 0.00;
+
+    rclcpp::Rate rate_; // 10 Hz
 
     geometry_msgs::msg::Twist vel_msg_;
     geometry_msgs::msg::Point worldPoint;
