@@ -49,7 +49,6 @@ public:
         kp_distance_ = 0.1;
         kp_yaw_ = 0.2;
 
-        
         // TransformBroadCaster
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -85,7 +84,6 @@ public:
         std::bind(&MoveRB1::Laser_callback, this, std::placeholders::_1),
         options1);
 
-        
         // Timer Configuration
         timer_ = this->create_wall_timer(
         500ms, std::bind(&MoveRB1::timer_callback, this));
@@ -210,7 +208,10 @@ public:
     
     void timer_callback()
     {
-        goToTransform();
+        if (go_to_transform_ == true)
+        {
+            goToTransform();
+        }
     }
     
 
@@ -283,6 +284,9 @@ private:
         float threshold = 7500.0;
         rate_.sleep();
         // signal = true;
+        
+        if (tf_reached == false) 
+        {
         
         for (size_t i = 0; i < intensities.size(); ++i)
         {
@@ -524,6 +528,12 @@ private:
             divided = true;
         }
         
+        }
+        
+        }
+        else 
+        {
+            RCLCPP_WARN(get_logger(), "Transform Already Reached");
         }
     
     }
