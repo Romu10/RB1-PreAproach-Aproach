@@ -8,6 +8,7 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "std_msgs/msg/empty.hpp"
 
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2/exceptions.h"
@@ -56,6 +57,9 @@ public:
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
         
+        // Configurate lift commands 
+        publisher_elevator_up = create_publisher<std_msgs::msg::Empty>("/elevator_up", 1);
+        publisher_elevator_down = create_publisher<std_msgs::msg::Empty>("/elevator_down", 1);
 
         // ROS Publishers
         publisher_ = create_publisher<geometry_msgs::msg::Twist>("/robot/cmd_vel", 10);
@@ -130,11 +134,11 @@ public:
 
         geometry_msgs::msg::TransformStamped transformStamped;
         transformStamped.header.stamp = this->now();
-        transformStamped.header.frame_id = frame_header_name; // Reemplaza con tu marco base
+        transformStamped.header.frame_id = frame_header_name; 
         transformStamped.child_frame_id = frame_child_name;
         transformStamped.transform.translation.x = center_point.x;
         transformStamped.transform.translation.y = center_point.y;
-        transformStamped.transform.translation.z = 0.0; // Suponiendo una transformación 2D
+        transformStamped.transform.translation.z = 0.0; 
         transformStamped.transform.rotation.x = 0.0;
         transformStamped.transform.rotation.y = 0.0;
         transformStamped.transform.rotation.z = 0.0;
@@ -196,7 +200,7 @@ public:
             desired_pos = current_y_pos - 0.60;
             tf_reached = true;
         }
-        else 
+        else if (final_pos == false)
         {
             twist_msg->linear.x = linear_velocity;
             twist_msg->angular.z = angular_velocity;
@@ -231,7 +235,7 @@ private:
                 
             } else {
                 RCLCPP_INFO(get_logger(), "Service failed because it didn't detect both legs");
-                res->complete = false; // Si no se detectaron ambas patas, establece res->complete en false y sale del bucle.
+                res->complete = false; 
             }
         } else {
             RCLCPP_INFO(get_logger(), "Waiting the Laser to start running.");
@@ -248,33 +252,47 @@ private:
         current_y_ = msg->pose.pose.orientation.y; 
         current_degrees_ = ((current_theta_ * 2) * 180) / M_PI;  
         
-        if (tf_reached == true)
+        if (tf_reached == true && final_pos == false)
         {
             auto twist_msg = std::make_unique<geometry_msgs::msg::Twist>();
             RCLCPP_INFO(get_logger(), "Current Position: %f", current_y_pos);
             RCLCPP_INFO(get_logger(), "Target Position: %f", desired_pos);
 
-            if (desired_pos < current_y_pos)
-            {
-                RCLCPP_WARN(get_logger(), "RB1 Moving to Final Position");
-                twist_msg->linear.x = 0.05;
-                publisher_->publish(std::move(twist_msg));
-            }
-            else if (current_y_pos < desired_pos)
-            {
-                twist_msg->linear.x = 0.0;
-                publisher_->publish(std::move(twist_msg));
-                RCLCPP_WARN(get_logger(), "RB1 Reached Final Position");
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                final_pos = true;
-            }
+            if (final_pos == false)
+                {
+                    if (desired_pos < current_y_pos)
+                    {
+                        RCLCPP_WARN(get_logger(), "RB1 Moving to Final Position");
+                        twist_msg->linear.x = 0.05;
+                        publisher_->publish(std::move(twist_msg));
+                    }
+                    else if (current_y_pos < desired_pos)
+                    {   
+                        
+                        twist_msg->linear.x = 0.0;
+                        publisher_->publish(std::move(twist_msg));
+                        RCLCPP_WARN(get_logger(), "RB1 Reached Final Position");
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                        final_pos = true;
+                        
+                    }
+                }
         }
-        else 
+
+        if (final_pos == true && elevate_done == false)
         {
-            RCLCPP_WARN(get_logger(), "RB1 working to reach final pos");
+            auto elevator_command = std::make_unique<std_msgs::msg::Empty>();
+            publisher_elevator_up->publish(std::move(elevator_command));
+            RCLCPP_WARN(get_logger(), "Elevator Command Published");
+            elevate_done = true;
         }
-        
+        else if (elevate_done == true)
+        {
+            RCLCPP_WARN(get_logger(), "Shelf lifted");
+        }
     }
+
+        
 
     void Laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) 
     {   
@@ -548,6 +566,10 @@ private:
     // Define the Publisher to cmd_vel
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
 
+    // Define the publisher to the elevator
+    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr publisher_elevator_up;
+    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr publisher_elevator_down;
+
     // Define the subscription to the Odom
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscription2_;
     rclcpp::CallbackGroup::SharedPtr odom_callback_group_;
@@ -596,6 +618,7 @@ private:
     bool final_pos = false;
     float desired_pos;
     bool go_to_transform_ = false;
+    bool elevate_done = false;
 
     // First Group Vector
     std::vector<int> group1_ind;

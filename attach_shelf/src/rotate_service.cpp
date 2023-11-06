@@ -56,7 +56,7 @@ private:
 
         // Obtiene el número de grados desde la solicitud
         float degrees = req->degrees;
-        float radians = ((degrees / 2) * M_PI) / 180;
+        float radians = ((degrees / 2.1) * M_PI) / 180;
         float initial_theta = current_theta_;  
 
         // Calculus

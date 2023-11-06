@@ -173,7 +173,7 @@ class VelParam: public rclcpp::Node
                 // Wait until approach service server is ready.
                 while (!approach_client_->wait_for_service(1s)) 
                 {
-                    if (!rclcpp::ok()) 
+                    if (!rclcpp::ok() && approach_srv_done_ == false) 
                     {
                         RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Approach Service - Interrupted while waiting for the service. Exiting.");
                         return;

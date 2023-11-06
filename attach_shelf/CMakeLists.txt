@@ -18,6 +18,7 @@ find_package(tf2_ros REQUIRED)
 
 
 
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/Rotate.srv"  # Ruta al archivo de servicio personalizado
   "srv/GoToLoading.srv"  # Ruta al archivo de servicio personalizado
