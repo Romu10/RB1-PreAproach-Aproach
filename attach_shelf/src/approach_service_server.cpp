@@ -193,7 +193,7 @@ public:
             twist_msg->linear.x = 0.00;
             twist_msg->angular.z = 0.00;
             RCLCPP_WARN(get_logger(), "RB1 in Position");
-            desired_pos = current_y_pos - 0.55;
+            desired_pos = current_y_pos - 0.60;
             tf_reached = true;
         }
         else 
