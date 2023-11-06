@@ -11,7 +11,6 @@ def generate_launch_description():
             executable='approach_node',
             output='screen',
             name='service_approach',
-            parameters=[{'use_sim_time': True}],
         ),
         
         Node(
@@ -19,7 +18,6 @@ def generate_launch_description():
             executable='rotate_node',
             output='screen',
             name='service_rotate',
-            parameters=[{'use_sim_time': True}],
         ),
 
         DeclareLaunchArgument('obstacle', default_value='0.0'),

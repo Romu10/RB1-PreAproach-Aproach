@@ -168,11 +168,10 @@ class VelParam: public rclcpp::Node
 
         if (rotate_srv_done_ == true)
         {
-           
             if (fa_parameter_ == true)
             {
                 // Wait until approach service server is ready.
-                while (!approach_client_->wait_for_service(1s) && approach_srv_done_ == false) 
+                while (!approach_client_->wait_for_service(1s)) 
                 {
                     if (!rclcpp::ok()) 
                     {
@@ -180,8 +179,9 @@ class VelParam: public rclcpp::Node
                         return;
                     }
                     RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Approach service not available, waiting again...");
+                    approach_client_ = create_client<attach_shelf::srv::GoToLoading>("/approach_shelf");
                 }
-                
+
                 if (approach_srv_done_ == true) 
                 {
                     RCLCPP_WARN(this->get_logger(), "- Approach Service Complete");
@@ -214,7 +214,7 @@ class VelParam: public rclcpp::Node
 
     void rotate_response_callback(rclcpp::Client<attach_shelf::srv::Rotate>::SharedFuture future) 
     {
-        auto status = future.wait_for(3s);
+        auto status = future.wait_for(1s);
         auto rotate_result_ = future.get()->result;
         glb_rotate_result_ = rotate_result_;
         if (status == std::future_status::ready) 

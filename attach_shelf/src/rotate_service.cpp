@@ -65,7 +65,7 @@ private:
         float max_value_degree = target_theta + (target_theta * error_percent);
         float min_value_degree = target_theta - (target_theta * error_percent);
 
-        rclcpp::Rate rate(10); // Control loop rate
+        rclcpp::Rate rate(15); // Control loop rate
 
         while (rclcpp::ok()) {
             float orientation_error = target_theta - current_theta_;
