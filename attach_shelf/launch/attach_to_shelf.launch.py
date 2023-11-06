@@ -23,7 +23,8 @@ def generate_launch_description():
         DeclareLaunchArgument('obstacle', default_value='0.0'),
         DeclareLaunchArgument('degrees', default_value='0'),
         DeclareLaunchArgument('final_approach', default_value="false"),
-        
+        DeclareLaunchArgument('rviz_config_file', default_value='/home/user/ros2_ws/src/attach_shelf/rviz/config_approach.rviz'),
+
         # Ahora LogInfo está dentro de la lista de acciones.
         LogInfo(msg=LaunchConfiguration('obstacle')),
         LogInfo(msg=LaunchConfiguration('degrees')),
@@ -43,7 +44,14 @@ def generate_launch_description():
                 {'obstacle': LaunchConfiguration('obstacle')},
                 {'degrees': LaunchConfiguration('degrees')},
                 {'final_approach': LaunchConfiguration('final_approach')},
-            ]
+            ],
+        ),
 
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen',
+            arguments=['-d', LaunchConfiguration('rviz_config_file')],
         ),
     ])
