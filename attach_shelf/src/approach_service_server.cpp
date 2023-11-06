@@ -35,7 +35,7 @@ using namespace std::chrono_literals;
 class MoveRB1 : public rclcpp::Node
 {
 public:
-    MoveRB1() : Node("attach_robot_node"), rate_(1), srv_rate_(1)
+    MoveRB1() : Node("attach_robot_node"), rate_(5), srv_rate_(1)
     {
         // ROS Services
         service = create_service<attach_shelf::srv::GoToLoading>(
@@ -46,7 +46,7 @@ public:
 
         // PID Parameters 
         error_yaw_ = 0.2;
-        kp_distance_ = 0.2;
+        kp_distance_ = 0.1;
         kp_yaw_ = 0.2;
 
         
@@ -85,11 +85,11 @@ public:
         std::bind(&MoveRB1::Laser_callback, this, std::placeholders::_1),
         options1);
 
-        /*
+        
         // Timer Configuration
         timer_ = this->create_wall_timer(
-        1000ms, std::bind(&MoveRB1::timer_callback, this));
-        */
+        500ms, std::bind(&MoveRB1::timer_callback, this));
+        
     }
 
     void rotate_robot(float vel)
@@ -163,7 +163,7 @@ public:
         double dx = transform.transform.translation.x;
         double dy = transform.transform.translation.y;
         error_distance_ = sqrt(dx * dx + dy * dy);
-        RCLCPP_INFO(get_logger(), "Distance: %f m", error_distance_);
+        RCLCPP_INFO(get_logger(), "Error Distance: %f m", error_distance_);
 
         // Convierte la rotación de geometry_msgs::msg::Quaternion a tf2::Quaternion
         tf2::Quaternion rotation(
@@ -177,16 +177,16 @@ public:
         double q_w = transform.transform.rotation.w;
 
         double yaw = atan2(2.0 * (q_x * q_y + q_w * q_z), q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z);
-        RCLCPP_INFO(get_logger(), "Yaw: %f", yaw);
+        //RCLCPP_INFO(get_logger(), "Yaw: %f", yaw);
 
         // Calculate the orientation error
         error_yaw_ = desired_yaw_ - yaw;
 
         // Calcula la velocidad lineal y angular
         double linear_velocity = kp_distance_ * error_distance_;
-        RCLCPP_INFO(get_logger(), "Linear Velocity: %f m", linear_velocity);
+        //RCLCPP_INFO(get_logger(), "Linear Velocity: %f m", linear_velocity);
         double angular_velocity = kp_yaw_ * error_yaw_;
-        RCLCPP_INFO(get_logger(), "Angular Velocity: %f m", angular_velocity);
+        //RCLCPP_INFO(get_logger(), "Angular Velocity: %f m", angular_velocity);
 
         // Publish the linear and angular velocity
         auto twist_msg = std::make_unique<geometry_msgs::msg::Twist>();
@@ -195,7 +195,7 @@ public:
             twist_msg->linear.x = 0.00;
             twist_msg->angular.z = 0.00;
             RCLCPP_WARN(get_logger(), "RB1 in Position");
-            desired_pos = current_y_pos - 0.60;
+            desired_pos = current_y_pos - 0.55;
             tf_reached = true;
         }
         else 
@@ -207,12 +207,12 @@ public:
         publisher_->publish(std::move(twist_msg));
 
     }
-    /*
+    
     void timer_callback()
     {
-            
+        goToTransform();
     }
-    */
+    
 
 private:
     void approachServiceCallback(
@@ -311,23 +311,23 @@ private:
         if (!group1_ind.empty())
         {
             detected_leg_1_ = true; 
-            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance Detected!");
+            //RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 1 Distance Detected!");
         }
         else 
         {
             detected_leg_1_ = false;
-            RCLCPP_ERROR_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
+            //RCLCPP_ERROR_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
         }
 
         if (!group2_ind.empty())
         {
             detected_leg_2_ = true;
-            RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance Detected!");
+            //RCLCPP_INFO_ONCE(get_logger(), "Shelf Leg 2 Distance Detected!");
         }
         else 
         {
             detected_leg_2_ = false;
-            RCLCPP_ERROR_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
+           //RCLCPP_ERROR_ONCE(get_logger(), "No Distance Detected in for first shelf leg");
         }
         
         
@@ -444,8 +444,8 @@ private:
 
         // Calculating middle point
         midPoint = calcularPuntoMedio(x_point_leg_2, y_point_leg_2, x_point_leg_1, y_point_leg_1);
-        RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
-        RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
+        //RCLCPP_INFO(get_logger(), "Middle Point X: %f", midPoint.x);
+        //RCLCPP_INFO(get_logger(), "Middle Point Y: %f", midPoint.y);
 
         /*
         // Calculating distance between middle point and robot
@@ -514,11 +514,10 @@ private:
                 {
                     // Create and Publish the Transforms
                     publishTransformBroadcasterMsg(midPoint, "cart_frame");
-                    //publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
-                    //publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
+                    publishTransformBroadcasterMsg(pointLeg1, "leg1_frame");
+                    publishTransformBroadcasterMsg(pointLeg2, "leg2_frame");
                     RCLCPP_WARN(get_logger(), "Transform Published");
-
-                    goToTransform();
+                    go_to_transform_ = true;
                 }
             }
         
@@ -586,6 +585,7 @@ private:
     bool tf_reached = false;
     bool final_pos = false;
     float desired_pos;
+    bool go_to_transform_ = false;
 
     // First Group Vector
     std::vector<int> group1_ind;
